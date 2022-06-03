@@ -1,0 +1,263 @@
+.macro exit
+    li $v0, 10
+    syscall
+.end_macro
+
+.data
+	vector_ptr: 	.word vector #endereço do primeiro valor do vetor, soma 4 em 4 cada valor de endereço das entradas
+	vector_size: 	.word 0 #10010004
+	input_size: 	.asciiz "Entre com o número de elementos: " 
+	input_value: 	.asciiz " - Digite o valor: "
+	print_vector: 	.asciiz "O vetor inserido é: "
+	comma: 		.asciiz " , "
+	nl: 		.asciiz "\n"
+	
+	zero: 		.float 0.0
+	
+	opções: 	.ascii "Selecione uma das opções abaixo:\n"
+		 	.ascii "0 - Somatório do vetor.\n"
+	 		.ascii "1 - Menor valor do vetor.\n"
+	 		.ascii "2 - Maior valor do vetor.\n"
+	 		.ascii "3 - Média simples do vetor.\n"
+	 		.asciiz "4 - Encerrar programa."
+	def: 		.asciiz "Error"
+	
+	case_table: 	.word  case_0, case_1, case_2, case_3, case_4
+	sum_vector: 	.asciiz "O somatorio do vetor inserido é: "
+	med_vector: 	.asciiz "A média simples do vetor inserido é: "
+	men_vector: 	.asciiz "O menor valor do vetor inserido é: "
+	mai_vector: 	.asciiz "O maior valor do vetor inserido é: "
+.data 		0x10010300
+	vector: 	.space 400
+
+.text
+	la 	$a0, input_size
+	li 	$v0, 4
+	syscall
+
+	li 	$v0, 5
+	syscall
+
+	la 	$t0, vector_size
+	sw 	$v0, 0($t0)
+	
+	#preparação para média
+	move 	$s6, $v0 	#movendo o numero de elementos para um slot
+	mtc1 	$s6, $f2 	#movendo do slot para um no coproc
+	cvt.s.w $f2,$f2		#convertendo o valor para ponto flutuante
+
+	li 	$s0, 0             	# $s0 - contador do loop
+	la 	$t0, vector_size
+	lw 	$s1, 0($t0)        	# $s1 - size (numero de loop)
+	la 	$t0, vector_ptr
+	lw 	$s2, 0($t0)		# $s2 - ponteiro para o vetor
+
+L0:
+	beq $s0, $s1, L0_end 	#condição de entrada de valores
+	move $a0, $s0 		#imprimir o valor do contador antes da string
+	li $v0, 1
+	syscall
+	
+	la $a0, input_value 	#imprimir string
+	li $v0, 4
+	syscall
+	
+	li $v0, 6 		#ler float
+	syscall
+	#armazenar o valor no vetor
+	sll $t0, $s0, 2
+	add $t0, $t0, $s2
+	swc1 $f0, 0($t0)
+
+	addi $s0, $s0, 1 	#aumentando o valor do loop para sinalizar saida do loop
+	j L0
+L0_end:
+
+	la 	$a0, print_vector
+	li 	$v0, 4
+	syscall
+	
+	mtc1 	$zero, $f1 	#preparando para o somatorio, colocando o zero no 'f1'
+
+	la 	$t0, vector_size
+	lw 	$s0, 0($t0)       	# $s0 - size (numero de loop)
+	la 	$t0, vector_ptr
+	lw 	$s1, 0($t0)		# $s2 - ponteiro para o vetor
+L1:
+	beqz 	$s0, L1_end
+	addi 	$s0, $s0, -1
+	
+	lwc1 	$f12, 0($s1)
+	addi 	$s1, $s1, 4
+	add.s 	$f1, $f1, $f12 #somatório
+			
+	li   	$v0, 2
+	syscall
+	
+	L1_IF:
+		beqz 	$s0, L1_nl
+		la 	$a0, comma
+		li 	$v0, 4
+		syscall	
+		j L1_IF_END
+	L1_nl:
+		la 	$a0, nl
+		li 	$v0, 4
+		syscall
+	L1_IF_END:
+
+	j L1
+L1_end:
+	j menu
+menu:
+	la 	$a0, nl #pulando linha
+	li 	$v0, 4
+	syscall
+	
+	li 	$v0, 4
+	la 	$a0, opções 
+	syscall
+	la 	$a0, nl
+	li 	$v0, 4
+	syscall
+	
+	li 	$v0, 5
+	syscall
+	
+	move 	$s2, $v0 #colocando a opção em um slot diferente
+	li 	$t0, 4
+	beq 	$s2, $t0, exit_all #sair do programa
+
+main_switch:
+	slti $t7, $s2, 5
+	beq  $t7, $zero, default
+	
+	la   $s3, case_table
+	sll  $s2, $s2, 2
+	add  $s2, $s2, $s3
+	lw   $s2, 0($s2)
+	jr 	$s2
+
+case_0: #somatório
+	la 	$a0, sum_vector
+	li 	$v0, 4
+	syscall
+	
+	mov.s 	$f12, $f1
+	li 	$v0, 2
+	syscall
+	
+	la 	$a0, nl #pulando linha
+	li 	$v0, 4
+	syscall
+	
+	la 	$a0, nl#pulando linha
+	li 	$v0, 4
+	syscall
+	j 	menu
+
+case_1: #menor
+		la 	$t0, vector_size
+		lw 	$s6, 0($t0)       	# $s0 - size (numero de loop)
+		la 	$t0, vector_ptr
+		lw 	$s1, 0($t0)
+		lwc1 	$f12, 0($s1)
+		mov.s 	$f0, $f12
+		
+	L1_menor:
+		
+		
+		lwc1 	$f12, 0($s1) #pegando o valor q ta no ponteiro e carregando no f12
+		c.le.s 1, $f12, $f0
+		movt.s 	$f0, $f12, 1 		
+		
+		addi 	$s6, $s6, -1
+		addi 	$s1, $s1, 4			
+		bnez 	$s6, L1_menor #pula pra impressão quando o valor do contador for zero
+				
+
+	L1_menor_end:
+		la 	$a0, men_vector
+		li 	$v0, 4
+		syscall	
+			
+		mov.s 	$f12, $f0
+		li 	$v0, 2
+		syscall
+		
+		la 	$a0, nl #pulando linha
+		li 	$v0, 4
+		syscall
+	
+		la 	$a0, nl#pulando linha
+		li 	$v0, 4
+		syscall
+	j 	menu
+
+case_2: #maior
+		la 	$t0, vector_size
+		lw 	$s6, 0($t0)       	# $s0 - size (numero de loop)
+		la 	$t0, vector_ptr
+		lw 	$s1, 0($t0)
+		lwc1 	$f12, 0($s1)
+		mov.s 	$f0, $f12
+		
+	L1_maior:
+		
+		
+		lwc1 	$f12, 0($s1) #pegando o valor q ta no ponteiro e carregando no f12
+		c.le.s 1, $f12, $f0
+		movf.s 	$f0, $f12, 1 		
+		
+		addi 	$s6, $s6, -1
+		addi 	$s1, $s1, 4			
+		bnez 	$s6, L1_maior #pula pra impressão quando o valor do contador for zero
+				
+
+	L1_maior_end:
+		la 	$a0, mai_vector
+		li 	$v0, 4
+		syscall	
+			
+		mov.s 	$f12, $f0
+		li 	$v0, 2
+		syscall
+		
+		la 	$a0, nl #pulando linha
+		li 	$v0, 4
+		syscall
+	
+		la 	$a0, nl#pulando linha
+		li 	$v0, 4
+		syscall
+	j 	menu
+
+case_3: #média
+	la 	$a0, med_vector #string
+	li 	$v0, 4
+	syscall
+	
+	div.s 	$f3, $f1, $f2 #divisão pelo tam do vetor
+	mov.s 	$f12, $f3 #movendo para impressão
+	li 	$v0, 2
+	syscall
+	
+	la 	$a0, nl #pulando linha
+	li 	$v0, 4
+	syscall
+	
+	la 	$a0, nl#pulando linha
+	li 	$v0, 4
+	syscall
+	j 	menu
+
+case_4:
+	j exit_all
+
+default: 
+	la 	$a0, def
+	li 	$v0, 4
+	syscall
+	j 	menu
+exit_all:
+	exit()	
